@@ -56,6 +56,15 @@ def get_data():
             all_data.append(f"--- PROJECT OVERVIEW (Top 50) ---\n{df_proj.to_string(index=False)}")
         except:
             all_data.append("Could not find tab 'Project Overview'.")
+
+        --- TAB 5: Prices (NEW) ---
+        try:
+            df_price = conn.read(worksheet="Prices", ttl=60)
+            df_price = df_price.head(50)
+            # We explicitly label this so the AI knows these are buy links
+            all_data.append(f"--- PRICES & BUYING LINKS (Top 50) ---\n{df_price.to_string(index=False)}")
+        except:
+            all_data.append("Could not find tab 'Prices'.")
         
         return "\n\n".join(all_data)
 
