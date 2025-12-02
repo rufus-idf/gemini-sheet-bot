@@ -5,13 +5,13 @@ from streamlit_gsheets import GSheetsConnection
 
 # 1. Page Config
 st.set_page_config(page_title="Inventory Assistant", layout="centered")
-st.title("📦 Stock & Project Assistant")
+st.title("📦 Stock & Project Assistant (Lite)")
 
 # 2. Setup Gemini
+# We use the specific "Lite" model from your diagnostic list to avoid 429 errors
 if "GEMINI_API_KEY" in st.secrets:
     genai.configure(api_key=st.secrets["GEMINI_API_KEY"])
-    # UPDATED: We are using a model from your valid list
-    model = genai.GenerativeModel('gemini-2.0-flash')
+    model = genai.GenerativeModel('models/gemini-2.0-flash-lite-preview-02-05')
 else:
     st.error("Missing Gemini API Key in Secrets")
 
@@ -20,37 +20,40 @@ conn = st.connection("gsheets", type=GSheetsConnection)
 
 def get_data():
     """
-    Reads specific tabs: 'Wood Stock', 'Component Stock', 'Products', 'Project Overview'
+    Reads the 4 specific tabs, but limits to top 50 rows to save AI 'brain power' (tokens).
     """
     try:
-        # We use a list to store text from all sheets
         all_data = []
 
         # --- TAB 1: Wood Stock ---
         try:
             df_wood = conn.read(worksheet="Wood Stock", ttl=60)
-            all_data.append(f"WOOD STOCK DATA:\n{df_wood.to_string(index=False)}")
+            df_wood = df_wood.head(50) # Limit to 50 rows
+            all_data.append(f"--- WOOD STOCK (Top 50) ---\n{df_wood.to_string(index=False)}")
         except:
-            all_data.append("Could not find tab 'Wood Stock' - check spelling.")
+            all_data.append("Could not find tab 'Wood Stock'.")
 
         # --- TAB 2: Component Stock ---
         try:
             df_comp = conn.read(worksheet="Component Stock", ttl=60)
-            all_data.append(f"COMPONENT STOCK DATA:\n{df_comp.to_string(index=False)}")
+            df_comp = df_comp.head(50) # Limit to 50 rows
+            all_data.append(f"--- COMPONENT STOCK (Top 50) ---\n{df_comp.to_string(index=False)}")
         except:
             all_data.append("Could not find tab 'Component Stock'.")
 
         # --- TAB 3: Products ---
         try:
             df_prod = conn.read(worksheet="Products", ttl=60)
-            all_data.append(f"PRODUCT DATA:\n{df_prod.to_string(index=False)}")
+            df_prod = df_prod.head(50) # Limit to 50 rows
+            all_data.append(f"--- PRODUCTS (Top 50) ---\n{df_prod.to_string(index=False)}")
         except:
             all_data.append("Could not find tab 'Products'.")
 
         # --- TAB 4: Project Overview ---
         try:
             df_proj = conn.read(worksheet="Project Overview", ttl=60)
-            all_data.append(f"PROJECT OVERVIEW:\n{df_proj.to_string(index=False)}")
+            df_proj = df_proj.head(50) # Limit to 50 rows
+            all_data.append(f"--- PROJECT OVERVIEW (Top 50) ---\n{df_proj.to_string(index=False)}")
         except:
             all_data.append("Could not find tab 'Project Overview'.")
         
@@ -70,20 +73,19 @@ for message in st.session_state.messages:
         st.markdown(message["content"])
 
 # 5. User Input
-if prompt := st.chat_input("Ask about wood, components, or projects..."):
+if prompt := st.chat_input("Ask about stock or projects..."):
     st.chat_message("user").markdown(prompt)
     st.session_state.messages.append({"role": "user", "content": prompt})
 
-    with st.spinner("Checking all tabs..."):
+    with st.spinner("Checking top 50 items..."):
         data_context = get_data()
         
-        # If we got data, ask Gemini
         if data_context:
             full_prompt = f"""
-            You are an expert inventory manager. 
-            Answer the user's question based ONLY on the data below.
+            You are an inventory manager. 
+            Answer the question based ONLY on the data below.
             
-            DATA FROM SHEETS:
+            DATA (Truncated to first 50 rows):
             {data_context}
             
             USER QUESTION:
@@ -94,7 +96,6 @@ if prompt := st.chat_input("Ask about wood, components, or projects..."):
                 response = model.generate_content(full_prompt)
                 ai_reply = response.text
             except Exception as e:
-                # This captures the specific error if Gemini fails again
                 ai_reply = f"Gemini Error: {e}"
         else:
             ai_reply = "I couldn't read any data from the sheets."
