@@ -94,7 +94,8 @@ if prompt := st.chat_input("Ask about wood, components, or projects..."):
                 response = model.generate_content(full_prompt)
                 ai_reply = response.text
             except Exception as e:
-    ai_reply = f"Gemini Error: {e}"
+                # ERROR FIX: This line MUST have 4 spaces of indentation
+                ai_reply = f"Gemini Error: {e}"
         else:
             ai_reply = "I couldn't read any data from the sheets."
 
