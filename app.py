@@ -10,7 +10,7 @@ st.title("📦 Stock & Project Assistant")
 # 2. Setup Gemini
 if "GEMINI_API_KEY" in st.secrets:
     genai.configure(api_key=st.secrets["GEMINI_API_KEY"])
-    model = genai.GenerativeModel('gemini-1.5-flash')
+    model = genai.GenerativeModel('gemini-pro')
 else:
     st.error("Missing Gemini API Key in Secrets")
 
