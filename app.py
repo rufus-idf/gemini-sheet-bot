@@ -8,7 +8,6 @@ st.set_page_config(page_title="Inventory Assistant", layout="centered")
 st.title("📦 Stock, Projects & Prices")
 
 # 2. Setup Gemini
-# Using the Lite model to avoid speed limits
 if "GEMINI_API_KEY" in st.secrets:
     genai.configure(api_key=st.secrets["GEMINI_API_KEY"])
     model = genai.GenerativeModel('models/gemini-2.0-flash-lite-preview-02-05')
@@ -20,8 +19,7 @@ conn = st.connection("gsheets", type=GSheetsConnection)
 
 def get_data():
     """
-    Reads 5 tabs: Wood, Components, Products, Projects, and PRICES.
-    Limits to 50 rows each to prevent crashing.
+    Reads 5 tabs. We reduced rows to 40 per tab to ensure Wood Stock doesn't get cut off.
     """
     try:
         all_data = []
@@ -29,41 +27,41 @@ def get_data():
         # --- TAB 1: Wood Stock ---
         try:
             df_wood = conn.read(worksheet="Wood Stock", ttl=60)
-            df_wood = df_wood.head(50)
-            all_data.append(f"--- WOOD STOCK (Top 50) ---\n{df_wood.to_string(index=False)}")
+            df_wood = df_wood.head(40)
+            # We add a specific description so the AI knows this is raw material
+            all_data.append(f"--- SECTION 1: WOOD STOCK (Raw Materials like Oak, Pine, Sheets) ---\n{df_wood.to_string(index=False)}")
         except:
             all_data.append("Could not find tab 'Wood Stock'.")
 
         # --- TAB 2: Component Stock ---
         try:
             df_comp = conn.read(worksheet="Component Stock", ttl=60)
-            df_comp = df_comp.head(50)
-            all_data.append(f"--- COMPONENT STOCK (Top 50) ---\n{df_comp.to_string(index=False)}")
+            df_comp = df_comp.head(40)
+            all_data.append(f"--- SECTION 2: COMPONENT STOCK (Hardware, Screws, etc) ---\n{df_comp.to_string(index=False)}")
         except:
             all_data.append("Could not find tab 'Component Stock'.")
 
         # --- TAB 3: Products ---
         try:
             df_prod = conn.read(worksheet="Products", ttl=60)
-            df_prod = df_prod.head(50)
-            all_data.append(f"--- PRODUCTS (Top 50) ---\n{df_prod.to_string(index=False)}")
+            df_prod = df_prod.head(40)
+            all_data.append(f"--- SECTION 3: FINISHED PRODUCTS ---\n{df_prod.to_string(index=False)}")
         except:
             all_data.append("Could not find tab 'Products'.")
 
         # --- TAB 4: Project Overview ---
         try:
             df_proj = conn.read(worksheet="Project Overview", ttl=60)
-            df_proj = df_proj.head(50)
-            all_data.append(f"--- PROJECT OVERVIEW (Top 50) ---\n{df_proj.to_string(index=False)}")
+            df_proj = df_proj.head(40)
+            all_data.append(f"--- SECTION 4: PROJECT OVERVIEW ---\n{df_proj.to_string(index=False)}")
         except:
             all_data.append("Could not find tab 'Project Overview'.")
 
-        # --- TAB 5: Prices (NEW) ---
+        # --- TAB 5: Prices ---
         try:
             df_price = conn.read(worksheet="Prices", ttl=60)
-            df_price = df_price.head(50)
-            # We explicitly label this so the AI knows these are buy links
-            all_data.append(f"--- PRICES & BUYING LINKS (Top 50) ---\n{df_price.to_string(index=False)}")
+            df_price = df_price.head(40)
+            all_data.append(f"--- SECTION 5: BUYING LINKS & PRICES ---\n{df_price.to_string(index=False)}")
         except:
             all_data.append("Could not find tab 'Prices'.")
         
@@ -73,33 +71,43 @@ def get_data():
         st.error(f"Major Error reading sheet: {e}")
         return ""
 
-# 4. Chat Interface
+# 4. Debug Feature (Use this to check if Wood data is loading)
+with st.expander("🕵️‍♂️ Debug: See what the AI sees"):
+    if st.button("Load Raw Data"):
+        with st.spinner("Fetching data..."):
+            raw_text = get_data()
+            st.text_area("Raw Data sent to AI:", raw_text, height=300)
+
+# 5. Chat Interface
 if "messages" not in st.session_state:
     st.session_state.messages = []
 
-# Display history
 for message in st.session_state.messages:
     with st.chat_message(message["role"]):
         st.markdown(message["content"])
 
-# 5. User Input
-if prompt := st.chat_input("Ask about stock, prices, or links..."):
+if prompt := st.chat_input("Ask about wood, stock, or prices..."):
     st.chat_message("user").markdown(prompt)
     st.session_state.messages.append({"role": "user", "content": prompt})
 
-    with st.spinner("Checking stock and prices..."):
+    with st.spinner("Checking..."):
         data_context = get_data()
         
         if data_context:
             full_prompt = f"""
-            You are an inventory and purchasing assistant. 
-            Answer the question based ONLY on the data below.
+            You are an intelligent inventory manager. You have access to 5 sections of data:
+            1. Wood Stock (Raw materials)
+            2. Component Stock (Hardware)
+            3. Finished Products
+            4. Projects
+            5. Prices & Links
             
-            IMPORTANT:
-            - If the user asks about cost or where to buy, provide the price and the exact URL link from the 'Prices' section.
-            - If the URL is in the data, do not make one up. Use the one provided.
+            YOUR JOB:
+            Answer the user's question by looking at ALL sections above.
+            - If they ask for "Stock", check Wood, Components, and Products.
+            - If they ask for "Prices" or "Links", check the Prices section.
             
-            DATA (Truncated to first 50 rows):
+            DATA:
             {data_context}
             
             USER QUESTION:
