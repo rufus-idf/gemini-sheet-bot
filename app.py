@@ -3,77 +3,100 @@ import pandas as pd
 import google.generativeai as genai
 from streamlit_gsheets import GSheetsConnection
 
-# 1. Page Config (Makes it look nice)
-st.set_page_config(page_title="Company Assistant", layout="centered")
-st.title("📊 Data Assistant")
+# 1. Page Config
+st.set_page_config(page_title="Inventory Assistant", layout="centered")
+st.title("📦 Stock & Project Assistant")
 
 # 2. Setup Gemini
-genai.configure(api_key=st.secrets["GEMINI_API_KEY"])
-model = genai.GenerativeModel('gemini-1.5-flash')
+if "GEMINI_API_KEY" in st.secrets:
+    genai.configure(api_key=st.secrets["GEMINI_API_KEY"])
+    model = genai.GenerativeModel('gemini-1.5-flash')
+else:
+    st.error("Missing Gemini API Key in Secrets")
 
 # 3. Connect to Google Sheets
-# We use ttl=600 so it checks for new data every 10 minutes (prevents freezing)
 conn = st.connection("gsheets", type=GSheetsConnection)
 
 def get_data():
+    """
+    Reads specific tabs: 'Wood Stock', 'Component Stock', 'Products', 'Project Overview'
+    """
     try:
-        # REPLACE 'Stock', 'Product', 'Project' with your actual tab names!
-        df_stock = conn.read(worksheet="Stock", ttl=60)
-        df_product = conn.read(worksheet="Product", ttl=60)
-        df_project = conn.read(worksheet="Project", ttl=60)
+        # We use a list to store text from all sheets
+        all_data = []
+
+        # --- TAB 1: Wood Stock ---
+        # We try to read it. If the name is slightly wrong (like "Wood Stock "), we catch the error.
+        try:
+            df_wood = conn.read(worksheet="Wood Stock", ttl=60)
+            all_data.append(f"WOOD STOCK DATA:\n{df_wood.to_string(index=False)}")
+        except:
+            all_data.append("Could not find tab 'Wood Stock' - check spelling.")
+
+        # --- TAB 2: Component Stock ---
+        try:
+            df_comp = conn.read(worksheet="Component Stock", ttl=60)
+            all_data.append(f"COMPONENT STOCK DATA:\n{df_comp.to_string(index=False)}")
+        except:
+            all_data.append("Could not find tab 'Component Stock'.")
+
+        # --- TAB 3: Products ---
+        try:
+            df_prod = conn.read(worksheet="Products", ttl=60)
+            all_data.append(f"PRODUCT DATA:\n{df_prod.to_string(index=False)}")
+        except:
+            all_data.append("Could not find tab 'Products'.")
+
+        # --- TAB 4: Project Overview ---
+        try:
+            df_proj = conn.read(worksheet="Project Overview", ttl=60)
+            all_data.append(f"PROJECT OVERVIEW:\n{df_proj.to_string(index=False)}")
+        except:
+            all_data.append("Could not find tab 'Project Overview'.")
         
-        # Combine data into a readable string for the AI
-        combined_data = f"""
-        Here is the current Stock Data:
-        {df_stock.to_string(index=False)}
-        
-        Here is the Product Details:
-        {df_product.to_string(index=False)}
-        
-        Here is the Project Info:
-        {df_project.to_string(index=False)}
-        """
-        return combined_data
+        return "\n\n".join(all_data)
+
     except Exception as e:
-        st.error(f"Error reading sheet: {e}")
+        st.error(f"Major Error reading sheet: {e}")
         return ""
 
 # 4. Chat Interface
 if "messages" not in st.session_state:
     st.session_state.messages = []
 
-# Display previous history
+# Display history
 for message in st.session_state.messages:
     with st.chat_message(message["role"]):
         st.markdown(message["content"])
 
-# 5. The Logic
-if prompt := st.chat_input("Ask about stock, products, or projects..."):
-    # User message
+# 5. User Input
+if prompt := st.chat_input("Ask about wood, components, or projects..."):
     st.chat_message("user").markdown(prompt)
     st.session_state.messages.append({"role": "user", "content": prompt})
 
-    # AI Process
-    with st.spinner("Analyzing spreadsheet..."):
+    with st.spinner("Checking all tabs..."):
         data_context = get_data()
         
+        # If we got data, ask Gemini
         if data_context:
             full_prompt = f"""
-            You are a helpful business assistant. 
-            Answer the user's question based ONLY on the data provided below.
-            If the answer is not in the data, say "I don't see that in the sheets."
+            You are an expert inventory manager. 
+            Answer the user's question based ONLY on the data below.
             
-            DATA:
+            DATA FROM SHEETS:
             {data_context}
             
             USER QUESTION:
             {prompt}
             """
             
-            response = model.generate_content(full_prompt)
-            ai_reply = response.text
-            
-            # AI Reply
-            with st.chat_message("assistant"):
-                st.markdown(ai_reply)
-            st.session_state.messages.append({"role": "assistant", "content": ai_reply})
+            try:
+                response = model.generate_content(full_prompt)
+                ai_reply = response.text
+            except Exception as e:
+                ai_reply = "I'm having trouble connecting to Gemini right now."
+        else:
+            ai_reply = "I couldn't read any data from the sheets."
+
+        st.chat_message("assistant").markdown(ai_reply)
+        st.session_state.messages.append({"role": "assistant", "content": ai_reply})
