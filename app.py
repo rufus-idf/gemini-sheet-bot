@@ -5,7 +5,6 @@ from streamlit_gsheets import GSheetsConnection
 
 # 1. Page Config
 st.set_page_config(page_title="Inventory Assistant", layout="centered")
-st.title("📦 Stock, Projects & Prices")
 
 # --- CSS HACK: HIDE UI ELEMENTS & MAKE TRANSPARENT ---
 hide_streamlit_style = """
