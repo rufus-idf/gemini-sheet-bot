@@ -7,6 +7,31 @@ from streamlit_gsheets import GSheetsConnection
 st.set_page_config(page_title="Inventory Assistant", layout="centered")
 st.title("📦 Stock, Projects & Prices")
 
+# --- CSS HACK: HIDE UI ELEMENTS & MAKE TRANSPARENT ---
+hide_streamlit_style = """
+<style>
+    /* 1. Hide the top header bar (the colored line & hamburger menu) */
+    header {visibility: hidden;}
+    
+    /* 2. Hide the footer "Made with Streamlit" */
+    #MainMenu {visibility: hidden;}
+    footer {visibility: hidden;}
+    
+    /* 3. Attempt to make the main background transparent */
+    /* Note: If Google Sites forces a white background, this might show white */
+    .stApp {
+        background-color: transparent;
+    }
+    
+    /* 4. Remove top padding so the chat starts at the top of the box */
+    .block-container {
+        padding-top: 0rem;
+        padding-bottom: 0rem;
+    }
+</style>
+"""
+st.markdown(hide_streamlit_style, unsafe_allow_html=True)
+
 # 2. Setup Gemini
 if "GEMINI_API_KEY" in st.secrets:
     genai.configure(api_key=st.secrets["GEMINI_API_KEY"])
