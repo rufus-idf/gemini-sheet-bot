@@ -88,6 +88,13 @@ def get_data():
             all_data.append(f"--- SECTION 5: BUYING LINKS & PRICES ---\n{df_price.to_string(index=False)}")
         except:
             all_data.append("Could not find tab 'Prices'.")
+
+        try:
+            df_proj = conn.read(worksheet="Wood Usage", ttl=60)
+            df_proj = df_proj.head(40)
+            all_data.append(f"--- SECTION 4: Wood Usage ---\n{df_proj.to_string(index=False)}")
+        except:
+            all_data.append("Could not find tab 'Wood Usage'.")
         
         return "\n\n".join(all_data)
 
